@@ -271,9 +271,7 @@ public class VirtualStorageGroupProcessor {
    */
   private String insertWriteLockHolder = "";
 
-  private ScheduledExecutorService timedCompactionScheduleTask =
-      IoTDBThreadPoolFactory.newSingleThreadScheduledExecutor(
-          ThreadName.COMPACTION_SCHEDULE.getName());
+  private ScheduledExecutorService timedCompactionScheduleTask;
 
   public static final long COMPACTION_TASK_SUBMIT_DELAY = 20L * 1000L;
 
@@ -402,13 +400,6 @@ public class VirtualStorageGroupProcessor {
       logger.error("create Storage Group system Directory {} failed", storageGroupSysDir.getPath());
     }
 
-    ScheduledExecutorService executorService =
-        IoTDBThreadPoolFactory.newSingleThreadScheduledExecutor(ThreadName.WAL_TRIM.getName());
-    executorService.scheduleWithFixedDelay(
-        this::trimTask,
-        config.getWalPoolTrimIntervalInMS(),
-        config.getWalPoolTrimIntervalInMS(),
-        TimeUnit.MILLISECONDS);
     // use id table
     if (config.isEnableIDTable()) {
       try {
@@ -417,7 +408,9 @@ public class VirtualStorageGroupProcessor {
         logger.error("failed to create id table");
       }
     }
+    // recover tsfiles
     recover();
+
     if (MetricConfigDescriptor.getInstance().getMetricConfig().getEnableMetric()) {
       MetricsService.getInstance()
           .getMetricManager()
@@ -428,6 +421,20 @@ public class VirtualStorageGroupProcessor {
               Tag.NAME.toString(),
               "storageGroup");
     }
+
+    // start trim task at last
+    ScheduledExecutorService executorService =
+        IoTDBThreadPoolFactory.newSingleThreadScheduledExecutor(
+            ThreadName.WAL_TRIM.getName()
+                + "-"
+                + logicalStorageGroupName
+                + "-"
+                + virtualStorageGroupId);
+    executorService.scheduleWithFixedDelay(
+        this::trimTask,
+        config.getWalPoolTrimIntervalInMS(),
+        config.getWalPoolTrimIntervalInMS(),
+        TimeUnit.MILLISECONDS);
   }
 
   public String getLogicalStorageGroupName() {
@@ -538,6 +545,14 @@ public class VirtualStorageGroupProcessor {
   }
 
   private void initCompaction() {
+    timedCompactionScheduleTask =
+        IoTDBThreadPoolFactory.newSingleThreadScheduledExecutor(
+            ThreadName.COMPACTION_SCHEDULE.getName()
+                + "-"
+                + logicalStorageGroupName
+                + "-"
+                + virtualStorageGroupId);
+
     CompactionTaskManager.getInstance()
         .submitTask(
             logicalStorageGroupName + "-" + virtualStorageGroupId,
@@ -2350,14 +2365,6 @@ public class VirtualStorageGroupProcessor {
    */
   public void loadNewTsFile(TsFileResource newTsFileResource) throws LoadFileException {
     File tsfileToBeInserted = newTsFileResource.getTsFile();
-    System.out.println(tsfileToBeInserted.getPath());
-    for (String device : newTsFileResource.getDevices()) {
-      System.out.println(
-          "startTime: "
-              + newTsFileResource.getStartTime(device)
-              + " endTime: "
-              + newTsFileResource.getEndTime(device));
-    }
     long newFilePartitionId = newTsFileResource.getTimePartitionWithCheck();
     writeLock("loadNewTsFile");
     try {
@@ -2779,7 +2786,7 @@ public class VirtualStorageGroupProcessor {
       File targetModFile =
           fsFactory.getFile(targetFile.getAbsolutePath() + ModificationFile.FILE_SUFFIX);
       try {
-        Files.deleteIfExists(targetFile.toPath());
+        Files.deleteIfExists(targetModFile.toPath());
       } catch (IOException e) {
         logger.warn("Cannot delete localModFile {}", targetModFile, e);
       }

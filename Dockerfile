@@ -1,6 +1,8 @@
 FROM maven:3.8.4-openjdk-11-slim AS builder
 
-RUN apt-get install automake bison flex g++ git libboost-all-dev libevent-dev libssl-dev libtool make pkg-config \
+RUN apt-get clean all \
+    && apt-get update \
+    && apt-get install automake bison flex g++ git libboost-all-dev libevent-dev libssl-dev libtool make pkg-config \
     && cd /tmp \
     && curl -Lo thrift.zip https://github.com/apache/thrift/archive/refs/tags/v0.16.0.zip \
     && tar zxf thrift.zip \

@@ -21,7 +21,7 @@ RUN mvn clean package -DskipTests -Dthrift.download-url=http://apache.org/licens
 
 FROM openjdk:11-jre-slim
 
-COPY --from=builder /app/distribution/target/apache-iotdb-0.12.4-all-bin /iotdb
+COPY --from=builder /app/distribution/target/apache-iotdb-0.12.4-all-bin/apache-iotdb-0.12.4-all-bin /iotdb
 
 # rpc port
 EXPOSE 6667

@@ -20,6 +20,12 @@ WORKDIR /app
 RUN mvn clean package -DskipTests -Dthrift.download-url=http://apache.org/licenses/LICENSE-2.0.txt -Dthrift.exec.absolute.path=/usr/local/bin/thrift
 
 FROM openjdk:11-jre-slim
+RUN apt update \
+  # procps is for `free` command
+  && apt install lsof procps -y \
+  && apt autoremove -y \
+  && apt purge --auto-remove -y \
+  && apt clean -y
 
 COPY --from=builder /app/distribution/target/apache-iotdb-0.12.4-all-bin/apache-iotdb-0.12.4-all-bin /iotdb
 
